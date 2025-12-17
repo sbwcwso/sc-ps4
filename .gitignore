@@ -1,0 +1,46 @@
+### Maven / Java ###
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+### Compiled class files ###
+*.class
+
+### Eclipse ###
+.settings/
+/.classpath
+/.project
+/bin/
+
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.iws
+out/
+
+### VS Code ###
+# .vscode/
+
+### Maven Wrapper ###
+.mvn/wrapper/maven-wrapper.jar
+
+### Logs and files generated during builds ###
+*.log
+hs_err_pid*
+
+### Test / coverage ###
+coverage-reports/
+jacoco.exec
+
+### Operating system files ###
+Thumbs.db
+.DS_Store
+
+# keep ps4.zip in repo (do not ignore)
+# if you have other zips you want ignored, add them explicitly
