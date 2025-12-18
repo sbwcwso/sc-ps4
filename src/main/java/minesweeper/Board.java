@@ -32,11 +32,11 @@ public class Board {
      * `board` array; callers only receive primitive/immutable values.
      *
      * Thread safety:
-     * - This class is NOT thread-safe. Concurrent access to mutating methods
-     * (`dig`, `flag`, `deflag`) may result in races and inconsistent state.
-     * - To make it thread-safe (Problem 3), protect mutable state either by
-     * synchronizing public mutators/accessors or by using explicit locks
-     * (e.g. `ReentrantLock`) and documenting the chosen concurrency policy.
+     * - This class is made thread-safe for Problem 3 by synchronizing public
+     * methods. All public accessors and mutators are `synchronized`, ensuring
+     * that only one thread may access or modify the board at a time.
+     * - This is a coarse-grained policy (single lock on `this`) which is
+     * simple and correct for the assignment. It may limit parallelism.
      */
     private final int sizeX;
     private final int sizeY;
@@ -175,7 +175,7 @@ public class Board {
     /**
      * Returns the state of the square at (x, y).
      */
-    public State getState(int x, int y) {
+    public synchronized State getState(int x, int y) {
         if (!isValidCoordinate(x, y)) {
             throw new IllegalArgumentException("Invalid coordinates");
         }
@@ -185,7 +185,7 @@ public class Board {
     /**
      * Returns true if the square at (x, y) has a bomb.
      */
-    public boolean hasBomb(int x, int y) {
+    public synchronized boolean hasBomb(int x, int y) {
         if (!isValidCoordinate(x, y)) {
             throw new IllegalArgumentException("Invalid coordinates");
         }
@@ -196,7 +196,7 @@ public class Board {
      * Digs the square at (x, y) according to Minesweeper rules.
      * Returns true if a bomb was hit (BOOM), false otherwise.
      */
-    public boolean dig(int x, int y) {
+    public synchronized boolean dig(int x, int y) {
         if (!isValidCoordinate(x, y) || getState(x, y) != State.UNTOUCHED) {
             return false; // Do nothing
         }
@@ -252,7 +252,7 @@ public class Board {
      * Flags the square at (x, y).
      * Returns true if successful, false if invalid coordinates or not untouched.
      */
-    public boolean flag(int x, int y) {
+    public synchronized boolean flag(int x, int y) {
         if (!isValidCoordinate(x, y) || getState(x, y) != State.UNTOUCHED) {
             return false;
         }
@@ -264,7 +264,7 @@ public class Board {
      * Deflags the square at (x, y).
      * Returns true if successful, false if invalid coordinates or not flagged.
      */
-    public boolean deflag(int x, int y) {
+    public synchronized boolean deflag(int x, int y) {
         if (!isValidCoordinate(x, y) || getState(x, y) != State.FLAGGED) {
             return false;
         }
@@ -275,7 +275,7 @@ public class Board {
     /**
      * Returns a string representation of the board for the LOOK command.
      */
-    public String look() {
+    public synchronized String look() {
         StringBuilder sb = new StringBuilder();
         for (int y = 0; y < sizeY; y++) {
             for (int x = 0; x < sizeX; x++) {
