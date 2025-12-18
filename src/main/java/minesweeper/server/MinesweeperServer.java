@@ -28,6 +28,8 @@ public class MinesweeperServer {
     private final ServerSocket serverSocket;
     /** True if the server should *not* disconnect a client after a BOOM message. */
     private final boolean debug;
+    /** The shared board for all clients. */
+    private final minesweeper.Board board;
 
     // TODO: Abstraction function, rep invariant, rep exposure
 
@@ -41,6 +43,16 @@ public class MinesweeperServer {
     public MinesweeperServer(int port, boolean debug) throws IOException {
         serverSocket = new ServerSocket(port);
         this.debug = debug;
+        this.board = null;
+    }
+
+    /**
+     * Construct a server bound to port with a pre-initialized board.
+     */
+    public MinesweeperServer(int port, boolean debug, Board board) throws IOException {
+        serverSocket = new ServerSocket(port);
+        this.debug = debug;
+        this.board = board;
     }
 
     /**
@@ -82,8 +94,15 @@ public class MinesweeperServer {
             for (String line = in.readLine(); line != null; line = in.readLine()) {
                 String output = handleRequest(line);
                 if (output != null) {
-                    // TODO: Consider improving spec of handleRequest to avoid use of null
                     out.println(output);
+                }
+                // If client asked to quit, stop handling and close socket
+                if ("BYE".equals(output)) {
+                    break;
+                }
+                // If BOOM and not debug mode, disconnect client
+                if ("BOOM".equals(output) && !this.debug) {
+                    break;
                 }
             }
         } finally {
@@ -103,31 +122,40 @@ public class MinesweeperServer {
         String regex = "(look)|(help)|(bye)|"
                 + "(dig -?\\d+ -?\\d+)|(flag -?\\d+ -?\\d+)|(deflag -?\\d+ -?\\d+)";
         if (!input.matches(regex)) {
-            // invalid input
-            // TODO Problem 5
+            return "ERROR";
         }
         String[] tokens = input.split(" ");
         if (tokens[0].equals("look")) {
             // 'look' request
-            // TODO Problem 5
+            return board.look();
         } else if (tokens[0].equals("help")) {
             // 'help' request
-            // TODO Problem 5
+            return "look: show board\n" +
+                    "dig X Y: dig at X,Y\n" +
+                    "flag X Y: place flag at X,Y\n" +
+                    "deflag X Y: remove flag at X,Y\n" +
+                    "bye: disconnect\n";
         } else if (tokens[0].equals("bye")) {
             // 'bye' request
-            // TODO Problem 5
+            return "BYE";
         } else {
             int x = Integer.parseInt(tokens[1]);
             int y = Integer.parseInt(tokens[2]);
             if (tokens[0].equals("dig")) {
                 // 'dig x y' request
-                // TODO Problem 5
+                boolean boom = board.dig(x, y);
+                if (boom) {
+                    return "BOOM";
+                }
+                return board.look();
             } else if (tokens[0].equals("flag")) {
                 // 'flag x y' request
-                // TODO Problem 5
+                board.flag(x, y);
+                return board.look();
             } else if (tokens[0].equals("deflag")) {
                 // 'deflag x y' request
-                // TODO Problem 5
+                board.deflag(x, y);
+                return board.look();
             }
         }
         // TODO: Should never get here, make sure to return in each of the cases above
@@ -281,9 +309,52 @@ public class MinesweeperServer {
     public static void runMinesweeperServer(boolean debug, Optional<File> file, int sizeX, int sizeY, int port)
             throws IOException {
 
-        // TODO: Continue implementation here in problem 4
+        // Build initial board either from file or randomly using provided size
+        Board board;
+        if (file.isPresent()) {
+            // Load board from file format: X Y\n followed by Y lines each with X values
+            // (0/1)
+            File f = file.get();
+            try (BufferedReader reader = new BufferedReader(new FileReader(f))) {
+                String header = reader.readLine();
+                if (header == null) {
+                    throw new IOException("empty board file");
+                }
+                String[] parts = header.split(" ");
+                int fx = Integer.parseInt(parts[0]);
+                int fy = Integer.parseInt(parts[1]);
+                boolean[][] bombs = new boolean[fx][fy];
+                for (int y = 0; y < fy; y++) {
+                    String line = reader.readLine();
+                    if (line == null) {
+                        throw new IOException("board file truncated");
+                    }
+                    String[] vals = line.trim().split(" ");
+                    if (vals.length != fx) {
+                        throw new IOException("invalid board line width");
+                    }
+                    for (int x = 0; x < fx; x++) {
+                        bombs[x][y] = vals[x].equals("1");
+                    }
+                }
+                board = new Board(fx, fy, bombs);
+            }
+        } else {
+            if (sizeX <= 0 || sizeY <= 0) {
+                throw new IllegalArgumentException("invalid size");
+            }
+            Random rnd = new Random();
+            boolean[][] bombs = new boolean[sizeX][sizeY];
+            // Choose a moderate density (e.g., 25%)
+            for (int x = 0; x < sizeX; x++) {
+                for (int y = 0; y < sizeY; y++) {
+                    bombs[x][y] = rnd.nextDouble() < 0.25;
+                }
+            }
+            board = new Board(sizeX, sizeY, bombs);
+        }
 
-        MinesweeperServer server = new MinesweeperServer(port, debug);
+        MinesweeperServer server = new MinesweeperServer(port, debug, board);
         server.serve();
     }
 }
