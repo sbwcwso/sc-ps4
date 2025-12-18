@@ -1,6 +1,9 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
     "cSpell.words": [
-        "boardfile"
+        "boardfile",
+        "deflag",
+        "deflagging",
+        "Deflags"
     ]
 }
