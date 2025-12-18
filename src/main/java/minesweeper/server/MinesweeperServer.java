@@ -14,8 +14,15 @@ import minesweeper.Board;
  */
 public class MinesweeperServer {
 
-    // System thread safety argument
-    // TODO Problem 5
+    // System thread-safety argument:
+    // - `serve()` accepts connections and spawns a new thread per connection.
+    // - The shared `board` object is internally synchronized (see Board), so
+    // concurrent access from multiple client threads is safe.
+    // - Each client connection is handled on its own thread and uses local
+    // per-connection streams; sockets are closed in `handleConnection`.
+    // - This design maintains safety by confining per-connection state to the
+    // connection thread and by relying on `Board`'s synchronization for
+    // shared state.
 
     /** Default server port. */
     private static final int DEFAULT_PORT = 4444;
@@ -31,7 +38,22 @@ public class MinesweeperServer {
     /** The shared board for all clients. */
     private final minesweeper.Board board;
 
-    // TODO: Abstraction function, rep invariant, rep exposure
+    /*
+     * Abstraction function:
+     * AF(serverSocket, debug, board) = a running Minesweeper server listening
+     * on serverSocket; `debug` controls whether clients are disconnected after
+     * a BOOM; `board` is the shared game board visible to all clients.
+     *
+     * Representation invariant:
+     * - serverSocket != null && serverSocket.isBound()
+     * - board != null
+     *
+     * Safety from rep exposure:
+     * - All important fields are private and final. The `board` object is
+     * shared among threads but its class (`minesweeper.Board`) provides
+     * synchronized accessors/mutators so concurrent access is controlled.
+     * - No method returns direct references to mutable internal state.
+     */
 
     /**
      * Make a MinesweeperServer that listens for connections on port.
@@ -43,7 +65,9 @@ public class MinesweeperServer {
     public MinesweeperServer(int port, boolean debug) throws IOException {
         serverSocket = new ServerSocket(port);
         this.debug = debug;
-        this.board = null;
+        // create a default empty board
+        boolean[][] bombs = new boolean[DEFAULT_SIZE][DEFAULT_SIZE];
+        this.board = new Board(DEFAULT_SIZE, DEFAULT_SIZE, bombs);
     }
 
     /**
