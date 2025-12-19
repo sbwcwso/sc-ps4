@@ -6,6 +6,7 @@ package minesweeper.server;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import minesweeper.Board;
 
@@ -37,6 +38,9 @@ public class MinesweeperServer {
     private final boolean debug;
     /** The shared board for all clients. */
     private final minesweeper.Board board;
+
+    /** Count of currently connected players (approximate). */
+    private final AtomicInteger playerCount = new AtomicInteger(0);
 
     /*
      * Abstraction function:
@@ -114,11 +118,48 @@ public class MinesweeperServer {
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
+        int playersNow = playerCount.incrementAndGet();
         try {
+            // send greeting on initial connection
+            String welcome = String.format(
+                    "Welcome to Minesweeper. Board: %d columns by %d rows. Players: %d including you. Type 'help' for help.",
+                    board.getSizeX(), board.getSizeY(), playersNow);
+            out.println(welcome);
+
             for (String line = in.readLine(); line != null; line = in.readLine()) {
+                if (this.debug) {
+                    System.out.println("RECV: '" + line + "'");
+                }
+                // If client requests LOOK after a BOOM in debug mode, return a
+                // revealed view by sending the board's current LOOK output.
+                if (line.equals("look")) {
+                    String output = board.look();
+                    if (this.debug) {
+                        System.out.println("SEND: '" + output.replace("\n", "\\n") + "'");
+                    }
+                    String[] lines = output.split("\\R");
+                    for (String outLine : lines) {
+                        out.println(outLine);
+                    }
+                    continue;
+                }
+
                 String output = handleRequest(line);
                 if (output != null) {
-                    out.println(output);
+                    if (this.debug) {
+                        System.out.println("SEND: '" + output.replace("\n", "\\n") + "'");
+                    }
+                    // If the output contains multiple lines (e.g., LOOK), send each
+                    // line separately so the client receives one board row per
+                    // readLine() call.
+                    if (output.contains("\n") || output.contains("\r")) {
+                        String[] lines = output.split("\\R");
+                        for (String outLine : lines) {
+                            out.println(outLine);
+                        }
+                    } else {
+                        out.println(output);
+                    }
                 }
                 // If client asked to quit, stop handling and close socket
                 if ("BYE".equals(output)) {
@@ -130,8 +171,13 @@ public class MinesweeperServer {
                 }
             }
         } finally {
+            playerCount.decrementAndGet();
             out.close();
             in.close();
+            try {
+                socket.close();
+            } catch (IOException e) {
+                /* ignore */ }
         }
     }
 
@@ -154,11 +200,7 @@ public class MinesweeperServer {
             return board.look();
         } else if (tokens[0].equals("help")) {
             // 'help' request
-            return "look: show board\n" +
-                    "dig X Y: dig at X,Y\n" +
-                    "flag X Y: place flag at X,Y\n" +
-                    "deflag X Y: remove flag at X,Y\n" +
-                    "bye: disconnect\n";
+            return "Type 'look', 'dig X Y', 'flag X Y', 'deflag X Y', 'bye'";
         } else if (tokens[0].equals("bye")) {
             // 'bye' request
             return "BYE";
@@ -166,9 +208,9 @@ public class MinesweeperServer {
             int x = Integer.parseInt(tokens[1]);
             int y = Integer.parseInt(tokens[2]);
             if (tokens[0].equals("dig")) {
-                // 'dig x y' request
-                boolean boom = board.dig(x, y);
-                if (boom) {
+                // 'dig x y' request: board.dig returns true if no bomb, false if bomb
+                boolean success = board.dig(x, y);
+                if (!success) {
                     return "BOOM";
                 }
                 return board.look();
@@ -182,7 +224,7 @@ public class MinesweeperServer {
                 return board.look();
             }
         }
-        // TODO: Should never get here, make sure to return in each of the cases above
+        // Should never get here, make sure to return in each of the cases above
         throw new UnsupportedOperationException();
     }
 

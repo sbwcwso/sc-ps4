@@ -41,6 +41,7 @@ public class Board {
     private final int sizeX;
     private final int sizeY;
     private final Square[][] board;
+    // Single canonical `look()` format is used; no separate boomed state.
 
     /**
      * Represents a single square on the board.
@@ -175,38 +176,26 @@ public class Board {
     /**
      * Returns the state of the square at (x, y).
      */
-    public synchronized State getState(int x, int y) {
-        if (!isValidCoordinate(x, y)) {
-            throw new IllegalArgumentException("Invalid coordinates");
-        }
+    private State getState(int x, int y) {
         return board[x][y].getState();
     }
 
     /**
-     * Returns true if the square at (x, y) has a bomb.
-     */
-    public synchronized boolean hasBomb(int x, int y) {
-        if (!isValidCoordinate(x, y)) {
-            throw new IllegalArgumentException("Invalid coordinates");
-        }
-        return board[x][y].hasBomb();
-    }
-
-    /**
      * Digs the square at (x, y) according to Minesweeper rules.
-     * Returns true if a bomb was hit (BOOM), false otherwise.
+     * Returns false if a bomb was hit (BOOM), true otherwise.
      */
     public synchronized boolean dig(int x, int y) {
         if (!isValidCoordinate(x, y) || getState(x, y) != State.UNTOUCHED) {
-            return false; // Do nothing
+            return true; // Do nothing
         }
 
         Square square = board[x][y];
         square.setState(State.DUG);
 
-        if (square.hasBomb()) {
-            removeBombAt(x, y); // Remove the bomb and update neighbor counts
-            return true; // BOOM
+        boolean wasBomb = square.hasBomb();
+        if (wasBomb) {
+            // remove the bomb so subsequent neighbor counts reflect removal
+            removeBombAt(x, y);
         }
 
         // If no neighboring bombs, recursively dig neighbors
@@ -223,7 +212,8 @@ public class Board {
             }
         }
 
-        return false;
+        // Return semantics: return false if a bomb was hit, true otherwise.
+        return !wasBomb;
     }
 
     /**
@@ -276,12 +266,16 @@ public class Board {
      * Returns a string representation of the board for the LOOK command.
      */
     public synchronized String look() {
+        // Single canonical BOARD format: one character per square, space-separated.
+        // Hidden view (no revealing of bombs): untouched '-', flagged 'F', dug shows
+        // neighbor count or space for 0.
         StringBuilder sb = new StringBuilder();
         for (int y = 0; y < sizeY; y++) {
             for (int x = 0; x < sizeX; x++) {
                 sb.append(getDisplayChar(x, y));
-                if (x < sizeX - 1)
-                    sb.append(" ");
+                if (x < sizeX - 1) {
+                    sb.append(' ');
+                }
             }
             sb.append(System.lineSeparator());
         }
